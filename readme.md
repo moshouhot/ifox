@@ -1,369 +1,1524 @@
-IFoxCAD类库从入门到精通
-#  0. 前言 
+# 01图元操作.md
 
-使用IFoxCAD类库之前，您需要通读一遍cad的官方教程至Creating and Editing Entities 章节，[教程的地址](https://help.autodesk.com/view/OARX/2023/ENU/?guid=GUID-C3F3C736-40CF-44A0-9210-55F6A939B6F2)
-，如果看不懂英文的（其实你可以用浏览器的翻译插件看），可以去看中文翻译版《Autocad .net 开发指南2012版》。 
-通读的目的不是让你写多少程序，而是知道cad的二次开发到底是个什么样子，api的构成是什么，特别是了解符号表是什么，符号表的构成。 
-此文档由IFox的群友自发编写，不足之处还请谅解。
-## __0.1 项目来源__
+# 1. 图元操作
 
-起初 __雪山飞狐（又狐哥）__ 在明经论坛发布了[开源库](http://bbs.mjtd.com/thread-75701-1-1.html)，后来狐哥自己的项目进行了极大的丰富后形成NFox类库。然后 __落魄山人__ 在征得 __雪山飞狐 __的同意后，对NFox类库进行了整理，增加了注释等，重新发布了NFox类库。
-后来，经过一段时间的更新后，由于莫名其妙的原因NFox类库挂掉了。而这时山人同学已经基本吃透NFox类库，考虑到NFox的封装过于复杂，遂进行了重构。
-重构的类库命名为IFoxCAD， 寓意为：__I(爱)Fox(狐哥)__，本项目发布于__Inspire Function（中文名：跃动方程）__ 组织下，感谢 __小轩轩__ 给起的名字。
-## 0.2 版本计划
+## 1.1 图元添加
 
-目前ifox受支持的版本为 0.5.2.4 ，0.6.1，0.7.2这三个主要的版本。
-其中0.5.2.4版本支持net35，net40，net45
-0.6.1版本支持net40，net45
-0.7以后的版本仅支持net48 (net48依然可以正确的运行在cad2014上)
-__0.5版本作为低版本用户的维护版本，在没有维护人员接手的前提下，不进行任何的功能性更新，仅有重大bug修复更新，nuget版本号为0.5.*。__
-__0.6.*版本，支持net40-net45。此版本不进行功能性更新，仅有重大bug修复更新。__
-__v0.7及以上的版本，全部升级至net48，发布nuget 0.7.*版本。此版本进行功能性更新。__
-请根据自己的需求选择对应的版本。
-经测试net48项目(不使用net40以上CADApi)可以在CAD2013及以上项目正常使用
-# 1. __前置知识__
+### 1.1.1 添加直线
 
-## 1.1. __AutoCAD的二次开发API的结构__
+```csharp
+[CommandMethod(nameof(Test_AddLine1))]
+public void Test_AddLine1()
+{
+    using var tr = new DBTrans();
 
-__ 本节内容基本照抄桌子的Managed .NET Developer's Guide (.NET)__
-AutoCAD .NET API是由不同的DLL文件组成的，这些文件包含了大量的类、结构、方法和事件，提供了对绘图文件或应用程序中对象的访问。每个DLL文件都定义了不同的命名空间，用来根据功能组织库中的组件。  你会经常使用的AutoCAD .NET API的主要DLL文件是：     
-● AcCoreMgd.dll，在编辑器内工作时使用，发布和打印，以及定义可以从AutoLISP调用的命令和函数。     
-● AcDbMgd.dll，在处理存储在绘图文件中的对象时使用。     
-● AcMgd.dll，在处理应用程序和用户接口时使用。    
-● AcCui.dll，在处理自定义文件时使用。
-IFox 已内置上述类库，详见模板配置文件："[AutoCAD.NET](https://AutoCAD.NET)" Version="23.0.0">。
-### __1.1.1. 了解AutoCAD的对象层次结构__
-
-AutoCAD .NET API主要是由对象构建的。每个暴露的对象都精确代表了AutoCAD的一个部分。在AutoCAD .NET  API中的 ，有许多不同类型的对象。在AutoCAD .NET API中有代表性的一些对象是。
-● 图形对象，如线、弧、文本和尺寸
-● 样式设置，如图层、线型和尺寸样式   
-● 组织结构，如图层、组和块     
-● 绘图显示，如视图和视口     
-● 甚至是图形和AutoCAD应用程序  
-这些对象的结构是分层的，AutoCAD应用对象位于根部。这种层次结构通常被称为  "对象模型"。下面的插图显示了应用程序对象和BlockTableRecord中的实体之间的基本关系，例如模型空间。在AutoCAD .NET  API中还有许多对象在这里没有表示。
-![4RTO2AYAGU](4RTO2AYAGU)
-### 1.1.2. Application对象 (.NET)
-
-Application对象是AutoCAD .NET  API的根对象。从应用程序对象中，你可以访问主窗口以及任何打开的图形。一旦你有了一个图形，你就可以访问图形中的对象。 例如，Application对象有一个DocumentManager属性，它返回DocumentCollection对象。这个对象提供了对当前在AutoCAD中打开的图形的访问，允许你创建、保存和打开图形文件。应用程序对象的其他属性提供了对应用程序特定数据的访问，如信息中心、主窗口和状态栏。MainWindow属性允许访问应用程序的名称、大小、位置和可见性。 虽然应用程序对象的大多数属性允许访问AutoCAD .NET API中的对象，但也有一些属性引用了AutoCAD  ActiveX®自动化中的对象。这些属性包括应用程序对象的COM版本（AcadApplication）、菜单栏（MenuBar）、加载的菜单组（MenuGroups）和偏好设置（Preferences）。 
-![IFT62AYALE](IFT62AYALE)
-__文档管理器 （DocumentManager）__ 所有文档对象的容器（每个打开的绘图都有一个文档对象）。 
- __文档窗口集合（DocumentWindowCollection ）__ 所有文档窗口对象的容器（DocumentManager中的每个文档对象都有一个文档 窗口对象）。 
- __信息中心（InfoCenter）__ 包含对 "信息中心 "工具栏的引用。      
- __主窗口（MainWindow） __   包含对 AutoCAD 的应用程序窗口对象的引用。 
- __菜单栏 （MenuBar）__  包含对 AutoCAD 中用于菜单栏的 MenuBar COM 对象的引用。
- __菜单组 （MenuGroups）__  包含对 MenuGroups COM 对象的引用，该对象包含每个加载的 CUIx 文件的定制组名称。 
- __设置 （Preferences） __ 包含对 Preferences COM 对象的引用，该对象允许您修改选项对话框中的许多设置。 
- __发布 （Publisher）__   包含对 Publisher 对象的引用，该对象用于发布绘图。 
- __状态栏 （StatusBar）__  包含对应用程序窗口的 StatusBar 对象的引用。 
- __用户配置管理器（UserConfigurationManager）__  包含对 UserConfigurationManager 对象的引用，该对象允许您使用用户保存的配置文件。 
-### 1.1.3. 文档对象  Document (.NET)
-
-文档对象实际上是一个AutoCAD图形，它是DocumentCollection对象的一部分。你使用DocumentExtension和DocumentCollectionExtention对象来创建、打开和关闭图形文件。文档对象提供了对数据库对象的访问，数据库包含了所有的图形和大多数非图形的AutoCAD对象。 与数据库对象一起，文档对象提供对状态栏、文档打开的窗口、编辑器和事务管理器对象的访问。编辑器对象提供了对各种功能的访问，这些功能用于从用户那里获得点或输入的字符串或数值形式的输入。 事务管理器对象用于在一个被称为事务的单一操作下访问多个数据库对象。事务可以被嵌套，当你完成一个事务时，你可以提交或放弃所做的改变。 
-![6VVO2AYAAE](6VVO2AYAAE)
-### 1.1.4. 数据库对象 Database(.NET) 
-
-数据库对象包含所有的图形对象和大多数非图形的AutoCAD对象。数据库中包含的一些对象是实体、符号表和命名字典。数据库中的实体代表了图形中的图形对象。线、圆、弧、文本、填充体和多段线都是实体的实例。用户可以在屏幕上看到一个实体，并可以对其进行操作。 你通过Document对象的Database成员属性访问当前文档的Database对象。 Application.DocumentManager.MdiActiveDocument.Database  
-__符号表和字典__ 
-符号表和字典对象提供对非图形对象（块、层、线型、布局等）的访问。每个图形都包含一组固定的符号表，而一个图形中的字典数量可以根据AutoCAD中使用的功能和应用类型而变化。新的符号表不能被添加到数据库中。 符号表的例子是层表（LayerTable）和块表（BlockTable），前者包含层表记录，后者包含块表记录。所有的图形实体（线、圆、弧等等）都属于一个块表记录。默认情况下，每张图纸都包含预定义的模型和图纸空间的块表记录。每个图纸空间的布局都有自己的块表记录。 字典是一个容器对象，可以包含任何AutoCAD对象或XRecord。词典要么存储在数据库中的命名对象词典下，要么作为表记录或图形实体的扩展词典。命名对象字典是与数据库相关的所有字典的主表。与符号表不同，新的字典可以被创建并添加到命名对象字典中。 注意：字典对象不能包含绘图实体。
-__VBA/ActiveX对照表 __ 
-AutoCAD .NET API 中的数据库对象与 ActiveX  自动化库中的文档对象类似。要访问ActiveX自动化库的Document对象中的大多数属性，你需要使用AutoCAD .NET  API的Document和Database对象。  
-![VRV62AYAEA](VRV62AYAEA)
-### 1.1.5 CAD各版本关系
-
-__CAD各版本注册表Release__
-__Official  Name__
-__Version__
-__DWG  Tag__
-__.Net __
-__[Framework/.NET](https://Framework/.NET)__
-__Supported .NET SDK__
-__Release__
-__Time__
-1
-AutoCAD Version 1.0
-1
-　
-　
-1982
-2
-AutoCAD Version 1.2
-1.2
-　
-　
-3
-AutoCAD Version 1.3
-1.3
-　
-　
-4
-AutoCAD Version 1.4
-1.4
-　
-　
-5
-AutoCAD Version 2.0
-2
-　
-　
-6
-AutoCAD Version 2.1
-2.1
-　
-　
-7
-AutoCAD Version 2.5
-2.5
-　
-　
-8
-AutoCAD Version 2.6
-2.6
-　
-　
-9
-AutoCAD Release 9
-9
-　
-　
-10
-AutoCAD Release 10
-10
-　
-　
-1988
-11
-AutoCAD Release 11
-11
-　
-　
-1991
-12
-AutoCAD Release 12
-12
-　
-　
-1992
-13
-AutoCAD Release 13
-13
-　
-　
-14
-AutoCAD Release 14
-14
-AC1014
-　
-15
-AutoCAD 2000
-15
-AC1015
-　
-1999
-16
-AutoCAD 2000i
-15.1
-AC1015
-　
-17
-AutoCAD 2002
-15.2
-AC1015
-　
-18
-AutoCAD 2004
-16
-AC1018
-1
-2003
-19
-AutoCAD 2005
-16.1
-AC1018
-1.1
-2005
-2004
-20
-AutoCAD 2006
-16.2
-AC1018
-1.1 SP1
-2005,2006
-2005
-21
-AutoCAD 2007
-17
-AC1021
-2.0
-2007
-2006
-22
-AutoCAD 2008
-17.1
-AC1021
-2.0
-2007,2008
-2007
-23
-AutoCAD 2009
-17.2
-AC1021
-3.0
-2007,2008,2009
-2008
-24
-AutoCAD 2010
-18
-AC1024
-3.5.1
-2010
-2009
-25
-AutoCAD 2011
-18.1
-AC1024
-3.5.1
-2010,2011
-2010
-26
-AutoCAD 2012
-18.2
-AC1024
-4.0
-2010,2011,2012
-2011
-27
-AutoCAD 2013
-19
-AC1 027
-4.0
-2013
-2012
-28
-AutoCAD 2014
-19.1
-AC1027
-4.0
-2013,2014
-2013
-29
-AutoCAD 2015
-20
-AC1027
-4.5
-2015
-2014
-30
-AutoCAD 2016
-20.1
-AC1027
-4.5
-2015,2016
-2015
-31
-AutoCAD 2017
-21
-AC1027
-4.6
-2017
-2016
-32
-AutoCAD 2018
-22
-AC1032
-4.6.2
-2018
-2017
-33
-AutoCAD 2019
-23
-AC1032
-4.7.2
-2019
-2018
-34
-AutoCAD 2020
-23.1
-AC1032
-4.7.2
-2019,2020
-2019
-35
-AutoCAD 2021
-24
-AC1032
-4.8
-2021
-2020
-36
-AutoCAD 2022
-24.1
-AC1032
-4.8
-2021,2022
-2021
-37
-AutoCAD 2023
-24.2
-AC1032
-4.8
-2021,2022,2023
-2022
-38
-AutoCAD 2024
-24.3
-AC1032
-4.8
-2021,2022,2023,2024
-2023
-39
-AutoCAD 2025
-25.0
-8.0
-2025
-2024
-## 1.2. __VS2022的使用__
-
-__ifoxcad类库必须使用vs2022的全新版本__，因为ifoxcad类库采用了最新的c#语法。
-为什么要这么做 ，就是因为cad二次开发圈子你们落后了，该跟上潮流了。新语法真香！！！
-### 1.2.1. 基础.net类库
-
-__默认Visual Studio 2022 不再支持安装 .NET Framework 4.5 组件，__选择组件里面已经不能选择4.5 / 4.0 的框架了。__如果你要是使用0.5-0.6版本的ifoxcad，需要安装net4.0/4.5框架。__
-解决方案如下：
-1. 最小化安装vs2019，然后安装net4.0/4.5框架。
-2. 利用nuget的microsoft.netframework.referenceassemblies.net45包，下载之后解压复制：build.NETFramework\v4.5\ 到 C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework.NETFramework\v4.5。
-
-net40同理处理。
-1. 最新【一键处理】方法：__（不保证一直有效，取决于工具作者）__
-
-[https://github.com/MrXhh/VSTools/releases](https://github.com/MrXhh/VSTools/releases)
-1）下载 VS2022Net4NotCompileFix
-2）右键管理员执行
-3）重启VS
-### 1.2.2. 类库调试设置
-
-vs2022新建的类库项目是不能直接设置调试启动程序的。但是cad的调试需要启动cad，所以需要新建个调试文件后设置为可执行文件模式。
-![MR262AYAAQ](MR262AYAAQ)
-注：上图界面路径为：菜单栏-> 调试->xxx调试属性。
-按上图的顺序，点击1，点击2来删除默认的配置，点击3来新建个配置，选择 __可执行文件__。
-![6V262AYAMM](6V262AYAMM)
-按上图的顺序依次设置，命令行参数/nologo的设置主要是为了加快启动速度。
-## 1.3.C#__语言的部分语法__
-
+    Line line1 = new Line(new Point3d(0, 0, 0), new Point3d(50, 50, 0));
+    Line line2 = new Line(new Point3d(50, 50, 0), new Point3d(0, 50, 0));
+    Line line3 = new Line(new Point3d(50, 50, 0), new Point3d(50, 0, 0));
+    line1.ColorIndex = 1;
+    line2.ColorIndex = 1;
+    line3.ColorIndex = 1;
+    tr.CurrentSpace.AddEntity(line1, line2, line3);
+}
 ```
-- 最新的语法支持，ifox类库应用了部分新的语法，所以需要在项目文件里启用新的语法支持，来更好的使用ifox。 <LangVersion>preview</LangVersion>。
 
+### 1.1.2 画弧
+
+```csharp
+[CommandMethod(nameof(Test_Drawarc))]
+public void Test_Drawarc() {
+    using DBTrans tr = new();
+    Arc arc1 = ArcEx.CreateArcSCE(new Point3d(2, 0, 0), new Point3d(0, 0, 0), new Point3d(0, 2, 0));// 起点，圆心，终点
+    Arc arc2 = ArcEx.CreateArc(new Point3d(4, 0, 0), new Point3d(0, 0, 0), Math.PI / 2);            // 起点，圆心，弧度
+    Arc arc3 = ArcEx.CreateArc(new Point3d(1, 0, 0), new Point3d(0, 0, 0), new Point3d(0, 1, 0));   // 起点，圆上一点，终点
+    tr.CurrentSpace.AddEntity(arc1, arc2, arc3);
+}
 ```
-- using
 
-1. //可以使用  
-2. using var xxx = new xxx(); 
-3. xxxx;
-4. //来代替原来的 
-5. using (var xxx = new xxx())
-6. {
-7.     xxxx;
-8. }
-9. //两者的区别就是新的语法更简洁，using作用域是在函数结束的时候自动释放。
+### 1.1.3 画圆
+
+```csharp
+[CommandMethod(nameof(Test_DrawCircle))]
+public void Test_DrawCircle()
+{
+    using DBTrans tr = new();
+    var circle1 = CircleEx.CreateCircle(new Point3d(0, 0, 0), new Point3d(1, 0, 0));// 两点画圆（直径上的两个点）
+    var circle2 = CircleEx.CreateCircle(new Point3d(-2, 0, 0), new Point3d(2, 0, 0), new Point3d(0, 2, 0));// 三点画圆，成功
+    var circle3 = CircleEx.CreateCircle(new Point3d(-2, 0, 0), new Point3d(0, 0, 0), new Point3d(2, 0, 0));// 三点画圆，失败
+    tr.CurrentSpace.AddEntity(circle1, circle2!);
+    if (circle3 is not null)
+        tr.CurrentSpace.AddEntity(circle3);
+    else
+        Env.Printl("三点画圆失败");
+}
+```
+
+### 1.1.4 多段线的绘制
+
+```csharp
+[CommandMethod(nameof(Test_AddPolyline3))]
+public void Test_AddPolyline3()
+{
+    using var tr = new DBTrans();
+
+    var pts = new List<Point3d>
+    {
+        new(0, 0, 0),
+        new(0, 1, 0),
+        new(1, 1, 0),
+        new(1, 0, 0)
+    };
+    var pline = pts.CreatePolyline();
+    tr.CurrentSpace.AddEntity(pline);
+
+    var pline1 = pts.CreatePolyline(p =>
+    {
+        p.Closed = true;
+        p.ConstantWidth = 0.2;
+        p.ColorIndex = 1;
+    });
+    tr.CurrentSpace.AddEntity(pline1);
+}
+```
+
+## 1.2 图元操作
+
+### 1.2.1 遍历图元名字
+
+```csharp
+[CommandMethod(nameof(iterateEntity))]
+public void iterateEntity()
+{
+    using DBTrans tr = new DBTrans();
+    tr.CurrentSpace.ForEach(id =>
+    {
+        var ent = id.GetObject<Entity>();
+        //如果要修改图元时var entity1 = id.GetObject<Entity>(OpenMode.ForWrite);
+        ent?.GetRXClass().DxfName.Print();
+        Env.Print("\n ");
+        Env.Print("\nDXF 名称:    " + ent?.GetRXClass().Name);
+        //AcDbLine,AcDbPolyline,AcDbText
+        Env.Print("\n图元名称:    " + ent?.GetType().Name);
+        //Line,Polyline,DBText
+        Env.Print("\nObjectID:    " + ent?.ToString());
+        Env.Print("\nHandle:      " + ent?.Handle.ToString());
+        if (ent is Line acdbLine)//如果ent是直线，转换为直线变量cdbLine
+        {
+            Env.Print("\nacDbLinet长度为： ");
+            //var txt = acdbLine.GetProperty("Length");//取得直度长度属性
+            var txt = acdbLine.Length;  // 这么写就可以了
+            txt.Print();
+        }
+        Env.Print("\n********************\n");
+    });
+}
+
+[CommandMethod(nameof(Test_PrintDxfname))]
+public void Test_PrintDxfname()
+{
+    using var tr = new DBTrans();
+
+    tr.CurrentSpace.ForEach(id => {
+        id.GetObject<Entity>()?.GetRXClass().DxfName.Print();
+    });
+}
+```
+
+### 1.2.2 移动
+
+用法：
+
+```csharp
+ent.Move(pt1, pt2);
+```
+
+### 1.2.3 旋转
+
+用法：
+
+```csharp
+ent.Rotation(new(100, 0, 0), Math.PI / 2);
+```
+
+### 1.2.4 镜像
+
+用法：
+
+```csharp
+// 沿两点组成的线镜像
+ent.Mirror(pt1, pt2);
+// 沿面镜像
+var plane = new Plane(Point3d.Origin, Vector3d.ZAxis);
+ent.Mirror(plane);
+// 沿对称点镜像
+ent.Mirror(pt);
+```
+
+### 1.2.5 缩放
+
+用法：
+
+```csharp
+ent.Scale(scaleCenter, scaleValue);
+```
+
+---
+
+# 02块表操作.md
+
+# 块操作
+
+## 1. 块表的查询
+
+### 1.1 查找名为"自定义块"的块表中的图块记录
+
+```csharp
+using var tr = new DBTrans();
+if (tr.BlockTable.Has("自定义块"))
+{
+    //要执行的操作
+}
+```
+
+### 1.2 遍历块表并打印所有的块表的图块名称
+
+```csharp
+public void Test_DBTrans_BlockCount()
+{
+    using var tr = new DBTrans();
+    var i = tr.CurrentSpace
+            .GetEntities<BlockReference>()
+            .Where(brf => brf.GetBlockName() == "自定义块")
+            .Count();
+    Env.Print(i);
+}
+```
+
+注意：这里的所有的图块名称包含ModelSpace和PaperSpace
+
+## 2. 块定义
+
+### 2.1 基本块定义
+
+```csharp
+[CommandMethod(nameof(Test_BlockDef))]
+public void Test_BlockDef()
+{
+    using DBTrans tr = new();
+    tr.BlockTable.Add("test",
+        btr =>
+        {
+            btr.Origin = new Point3d(0, 0, 0);
+        },
+        () => // 图元
+        {
+            return new List<Entity> { new Line(new Point3d(0, 0, 0), new Point3d(1, 1, 0)) };
+        },
+        () => // 属性定义
+        {
+            var id1 = new AttributeDefinition() { Position = new Point3d(0, 0, 0), Tag = "start", Height = 0.2 };
+            var id2 = new AttributeDefinition() { Position = new Point3d(1, 1, 0), Tag = "end", Height = 0.2 };
+            return new List<AttributeDefinition> { id1, id2 };
+        }
+    );
+}
+```
+
+### 2.2 复杂块定义和插入
+
+```csharp
+[CommandMethod(nameof(Test_InsertBlockDef))]
+public void Test_InsertBlockDef()
+{
+    using DBTrans tr = new();
+    var line1 = new Line(new Point3d(0, 0, 0), new Point3d(1, 1, 0));
+    var line2 = new Line(new Point3d(0, 0, 0), new Point3d(-1, 1, 0));
+    var att1 = new AttributeDefinition()
+    {
+        Position = new Point3d(10, 10, 0),
+        Tag = "tagTest1", Height = 1, TextString = "valueTest1"
+    };
+    var att2 = new AttributeDefinition()
+    {
+        Position = new Point3d(10, 12, 0),
+        Tag = "tagTest2", Height = 1, TextString = "valueTest2"
+    };
+    tr.BlockTable.Add("test1", line1, line2, att1, att2);
+
+    // 插入块
+    tr.CurrentSpace.InsertBlock(new Point3d(4, 4, 0), "test1"); // 默认插入
+    tr.CurrentSpace.InsertBlock(new Point3d(8, 8, 0), "test1", new Scale3d(2)); // 放大2倍
+    tr.CurrentSpace.InsertBlock(new Point3d(4, 4, 0), "test1", new Scale3d(2), Math.PI / 4); // 放大2倍,旋转45度
+
+    var def1 = new Dictionary<string, string>
+    {
+        { "tagTest1", "1" },
+        { "tagTest2", "2" }
+    };
+    tr.CurrentSpace.InsertBlock(new Point3d(15, 15, 0), "test1", atts: def1);
+}
+```
+
+## 3. 修改块定义名称和块参照
+
+```csharp
+[CommandMethod(nameof(Test_BlockDefChange))]
+public static void Test_BlockDefChange()
+{
+    using DBTrans tr = new();
+    tr.BlockTable.Change("test", btr =>
+    {
+        btr.Name = btr.Name.ToUpper();
+        foreach (var id in btr)
+        {
+            var ent = tr.GetObject<Entity>(id);
+            using (ent!.ForWrite())
+            {
+                if (ent is Dimension dBText)
+                {
+                    dBText.DimensionText = "234";
+                    dBText.RecomputeDimensionBlock(true);
+                }
+                if (ent is Hatch hatch)
+                {
+                    hatch.ColorIndex = 0;
+                }
+                if (ent is Line line)
+                {
+                    line.ColorIndex = 1;
+                    line.StartPoint = new Point3d(line.StartPoint.X+5, line.StartPoint.Y+5, 0);
+                    line.EndPoint = new Point3d(line.EndPoint.X+5, line.EndPoint.Y+5, 0);
+                }   
+            }
+        }
+    });
+    tr.Editor?.Regen();
+}
+```
+
+## 4. 删除块定义
+
+```csharp
+[CommandMethod(nameof(Test_BlockDelete))]
+public static void Test_BlockDelete()
+{
+    using var tr = new DBTrans();
+    tr.BlockTable.Remove("test");
+}
+```
+
+## 5. 获取文件里的块定义
+
+```csharp
+public void Test_BlockFile()
+{
+    using DBTrans tr = new();
+    var id = tr.BlockTable.GetBlockFrom(@"C:\Users\vic\Desktop\test.dwg", false);
+    //getblockfrom函数的第一个参数是文件路径，第二个参数是是否强制覆盖本图的块定义
+    tr.CurrentSpace.InsertBlock(Point3d.Origin, id);
+}
+```
+
+
+这个Markdown文件包含了块操作的主要内容，包括块表查询、块定义、修改块定义、删除块定义和从文件获取块定义等操作。文件结构清晰，便于阅读和理解。
+
+---
+
+# 03图层操作.md
+
+## 图层操作
+
+### 1. 根据名称查询指定的图层
+
+查看层表中是否含有名为"MyLayer"的图层。
+
+```csharp
+using var tr = new DBTrans();
+if(tr.LayerTable.Has("MyLayer"))
+{
+    //要执行的操作
+}
+```
+
+### 2. 遍历图层名称
+
+遍历图层表并打印每个图层的名字。
+
+```csharp
+using var tr = new DBTrans();
+tr.LayerTable.GetRecordNames().ForEach(action: (layname) => layname.Print());
+```
+
+### 3. 图层新增
+
+创建一个名为"MyLayer"的图层，要求图层颜色为红色，线宽为 0.3mm，可打印。
+
+```csharp
+[CommandMethod(nameof(createLayer))]
+public void createLayer()
+{
+    using var tr = new DBTrans();
+    tr.LayerTable.Add("MyLayer", it =>
+    {
+        it.Color = Color.FromColorIndex(ColorMethod.ByColor, 1);
+        it.LineWeight = LineWeight.LineWeight030;
+        it.IsPlottable = true;
+    });
+}
+```
+
+### 4. 图层修改
+
+查找名为"MyLayer"的图层，并将图层"MyLayer"的名称改为"MyLayer2"，颜色改为 2 号色，设为不可打印。
+
+```csharp
+[CommandMethod(nameof(updateLayer))]
+public void updateLayer()
+{
+    using var tr = new DBTrans();
+    if (tr.LayerTable.Has("MyLayer"))
+    {
+        tr.LayerTable.Change("MyLayer", lt => {
+            lt.Name = "MyLayer2";
+            lt.Color = Color.FromColorIndex(ColorMethod.ByAci, 2);
+            lt.IsPlottable = false;
+        });
+    }
+}
+```
+
+### 5. 图层删除
+
+```csharp
+using var tr = new DBTrans();
+tr.LayerTable.Delete("0");// 删除图层 0
+tr.LayerTable.Delete("Defpoints");// 删除图层Defpoints
+tr.LayerTable.Delete("1");// 删除不存在的图层 1
+tr.LayerTable.Delete("2");// 删除有图元的图层 2
+tr.LayerTable.Delete("3");// 删除图层 3
+```
+
+强制删除图层：
+
+```csharp
+using var tr = new DBTrans();
+tr.LayerTable.Remove("2"); // 强制删除存在图元的图层 2
+```
+
+上面基本上涵盖了对图层的基本操作。
+包含了图层操作的主要内容，包括查询图层、遍历图层名称、新增图层、修改图层和删除图层等操作。
+
+---
+
+# 04字体样式操作.md
+
+## 字体样式操作
+
+### 1. 根据名称查询字体样式
+
+查找名为"宋体"的字体样式。
+
+```csharp
+using var tr = new DBTrans();
+if(tr.TextStyleTable.Has("宋体"))
+{
+    //要执行的操作
+}
+````
+
+### 2. 新增指定的字体样式
+
+```csharp
+[CommandMethod(nameof(Test_TextStyle))]
+public void Test_TextStyle()
+{
+    using var tr = new DBTrans();
+    //通过字体名称添加
+    tr.TextStyleTable.Add("宋体", "宋体.ttf", 0.8);
+    //通过字体名称枚举的方式添加
+    tr.TextStyleTable.Add("宋体1", FontTTF.宋体, 0.8);
+    tr.TextStyleTable.Add("仿宋体", FontTTF.仿宋, 0.8);
+    tr.TextStyleTable.Add("fsgb2312", FontTTF.仿宋GB2312, 0.8);
+    tr.TextStyleTable.Add("arial", FontTTF.Arial, 0.8);
+    tr.TextStyleTable.Add("romas", FontTTF.Romans, 0.8);
+    tr.TextStyleTable.Add("daziti", ttr =>
+    {
+        ttr.FileName = "ascii.shx";
+        ttr.BigFontFileName = "gbcbig.shx";
+    });
+}
+```
+
+### 3. 字体样式的修改
+
+```csharp
+[CommandMethod(nameof(updateTextStyle))]
+public void updateTextStyle()
+{
+    using var tr = new DBTrans();
+    //添加文字样式记录,如果存在就默认强制替换
+    tr.TextStyleTable.AddWithChange("宋体1", "simfang.ttf", height: 5);
+    tr.TextStyleTable.AddWithChange("仿宋体", "宋体.ttf");
+    tr.TextStyleTable.AddWithChange("fsgb2312", "Romans", "gbcbig");
+}
+```
+
+### 4. 字体样式的删除
+
+删除名为"宋体"的字体样式。
+
+```csharp
+[CommandMethod(nameof(removeTextStyle))]
+public void removeTextStyle()
+{
+    using var tr = new DBTrans();
+    var textId = tr.TextStyleTable["宋体"];
+    tr.TextStyleTable.Remove(textId);
+}
+```
+
+包含了字体样式操作的主要内容，包括查询字体样式、新增字体样式、修改字体样式和删除字体样式等操作。
+
+---
+
+# 05线性表的操作.md
+
+# 线型操作
+
+## 1. 线型表的查询
+
+### 1.1 查询常用的三种线型
+
+每个 AutoCAD 图形会自动加载 3 种线形：ByLayer、ByBlock和 CONTINUOUS，可以通过下述方式获得这三种线型的 ObjectId。
+
+```csharp
+[CommandMethod(nameof(getLinetypeObjectId))]
+public void getLinetypeObjectId()
+{
+    using var tr = new DBTrans();
+    ObjectId byBlockId = SymbolUtilityServices.GetLinetypeByBlockId(tr.Database);
+    ObjectId byLayerId = SymbolUtilityServices.GetLinetypeByLayerId(tr.Database);
+    ObjectId continuousId = SymbolUtilityServices.GetLinetypeContinuousId(tr.Database);
+    Env.Printl("byBlockId: " + byBlockId + " byLayerId: " + byLayerId + " continuousId: " + continuousId);
+}
+````
+
+- **随层（ByLayer）**：对象的颜色、线型和线宽属性继承当前层的属性。
+- **随块（ByBlock）**：对象的颜色、线型和线宽属性使用它所在的图块的属性。
+- **连续线(continuous)**：AutoCAD默认的线型，也就是实线。
+
+### 1.2 根据名称查询线型
+
+查看线型表中是否含有名为"CENTER"的线型。
+
+```csharp
+using var tr = new DBTrans();
+if (tr.LinetypeTable.Has("CENTER"))
+{
+    //要执行的操作
+}
+```
+
+### 1.3 线型名称遍历
+
+遍历线型表并打印每个线型的名字。
+
+```csharp
+[CommandMethod(nameof(getLinetypeNames))]
+public void getLinetypeNames()
+{
+    using var tr = new DBTrans();
+    tr.LinetypeTable.GetRecordNames().ForEach(action: (linetypeName) => linetypeName.Print());
+}
+```
+
+## 2. 线型的新增
+
+### 2.1 加载已有线型
+
+从 acadiso.lin 线型文件中加载指定线型 CENTER。
+
+```csharp
+[CommandMethod(nameof(loadLineTypeFile))]
+public void loadLineTypeFile()
+{
+    using var tr = new DBTrans();
+    if(!tr.LinetypeTable.Has("CENTER"))
+    {
+        tr.Database.LoadLineTypeFile("CENTER", "acadiso.lin");
+        var objectId = tr.LinetypeTable["CENTER"];
+        Env.Printl("objectId: " + objectId);
+    }
+}
+```
+
+### 2.2 加载自定义 *.lin 文件里的所有线型
+
+```csharp
+try
+{
+    using var tr = new DBTrans();
+    tr.Database.LoadLineTypeFile("*", "D:\\文件名.lin");
+}
+catch (Exception)
+{
+}
+```
+
+### 2.3 新建自定义线型
+
+自定义一个 DASHLINES 线型。
+
+```csharp
+[CommandMethod(nameof(LinetypeAdd))]
+public void LinetypeAdd()
+{
+    using var tr = new DBTrans();
+    tr.LinetypeTable.Add("DASHLINES", (ltr) =>
+    {
+        ltr.AsciiDescription = "虚线";//线型说明
+        ltr.PatternLength = 0.95;//组成线型的图案长度（划线、空格、点）
+        ltr.NumDashes = 4;//组成线型的图案数目
+        ltr.SetDashLengthAt(0, 0.5);//0.5个单位的划线
+        ltr.SetDashLengthAt(1, -0.25);//0.25个单位的空格
+        ltr.SetDashLengthAt(2, 0);//一个点
+        ltr.SetDashLengthAt(3, -0.25);//0.25个单位的空格
+    });
+}
+```
+
+### 2.4 自定义一个带文字的线型
+
+```csharp
+[CommandMethod(nameof(LinetypeAddText))]
+public void LinetypeAddText()
+{
+    using var tr = new DBTrans();
+    tr.LinetypeTable.Add("文字线型", ltrText =>
+    {
+        ltrText.AsciiDescription = "文字";//线型说明
+        ltrText.PatternLength = 0.9;//组成线型的图案长度（划线、空格、点）
+        ltrText.NumDashes = 3;//组成线型的图案数目
+        ltrText.SetDashLengthAt(0, 0.5);//0.5个单位的划线
+        ltrText.SetDashLengthAt(1, -0.2);//0.2个单位的空格
+        ltrText.SetShapeStyleAt(1, tr.TextStyleTable["Standard"]);//设置文字的文字样式
+        ltrText.SetShapeOffsetAt(1, new Vector2d(-0.1, -0.05));
+        ltrText.SetShapeScaleAt(1, 0.1);//文字的缩放比例
+        ltrText.SetShapeRotationAt(1, 0);//文字的旋转角度为0（不旋转）
+        ltrText.SetTextAt(1, "GAS");//文字内容
+        ltrText.SetDashLengthAt(2, -0.2);//0.2个单位的空格
+    });
+}
+```
+
+## 3. 当前线型的设置
+
+将 CENTER 设为当前线型
+
+```csharp
+[CommandMethod(nameof(SetCurrentLineType))]
+public void SetCurrentLineType()
+{
+    using var tr = new DBTrans();
+    if(!tr.LinetypeTable.Has("CENTER"))
+    {
+        tr.Database.LoadLineTypeFile("CENTER", "acadiso.lin"); //导入CENTER线型
+    }
+    tr.Database.Celtype = tr.LinetypeTable["CENTER"];
+}
+```
+
+## 4. 线型删除
+
+卸载 CENTER 线型。
+
+```csharp
+[CommandMethod(nameof(DeleteLineType))]
+public void DeleteLineType()
+{
+    using var tr = new DBTrans();
+    tr.LinetypeTable.["CENTER"].Erase();
+}
+```
+
+注意: 不能卸载如下线型：
+- BYBLOCK
+- BYLAYER
+- CONTINUOUS
+- 当前线型
+- 已使用的线型
+- 外部参照的线形
+- 块定义中的线型
+
+删除这些线型会提示错误。
+
+包含了线型操作的主要内容，包括线型查询、新增线型、设置当前线型和删除线型等操作。文件结构清晰，便于阅读和理解。
+
+---
+
+# 06利用Jig技术实现三点绘制矩形.md
+
+# 三点绘制矩形
+
+这个示例展示了如何使用AutoCAD的jig功能来实现三点绘制矩形。
+
+## 代码实现
+
+```csharp
+namespace ifoxgse.Commands;
+
+public class DemoCommand
+{
+    /// <summary>
+    /// jig- 三点绘制矩形
+    /// </summary>
+    [CommandMethod(nameof(ThreepointRectangle))]
+    public void ThreepointRectangle()
+    {
+        // 第一个点的选择
+        var r1 = Env.Editor.GetPoint("\n选择第1个点");
+        if (r1.Status != PromptStatus.OK)
+        {
+            return;
+        }
+        var pt1 = r1.Value.Ucs2Wcs().Z20();
+        
+        // 先默认绘制一条线（起始点=结束点）
+        var line1 = new Line(pt1, pt1);
+        line1.SetDatabaseDefaults();
+        
+        // 实时获取鼠标移动后的点 并实时赋给线条结束点
+        using var j2 = new JigEx((mpw, _) =>
+        {
+            line1.EndPoint = mpw.Z20();
+        });
+        // 实时绘制到画布上
+        j2.DatabaseEntityDraw(draw => draw.Geometry.Draw(line1));
+        // 设置基点为第一个坐标点，隐藏虚线 并设置提示绘制第二个点的提示信息
+        j2.SetOptions(pt1, CursorType.Crosshair, msg: "\n第2个点");
+        
+        // 鼠标确认后，第一条直线绘制完毕
+        var r2 = Env.Editor.Drag(j2);
+        if (r2.Status != PromptStatus.OK)
+        {
+            return;
+        }
+        
+        var pt2 = line1.EndPoint.Point2d();
+        // 最终的矩形
+        var pl = new Polyline();
+        pl.SetDatabaseDefaults();
+        // 起始点就是刚开始绘制的直线的起始点
+        pl.AddVertexAt(0, pt1.Point2d(), 0, 0, 0);
+        // 矩形第二点就是刚才直线的末尾点
+        pl.AddVertexAt(1, pt2, 0, 0, 0);
+        // 第三点在实时绘制之前和第二点重合
+        pl.AddVertexAt(2, pt2, 0, 0, 0);
+        // 第四点在实时绘制之前和第一点重合
+        pl.AddVertexAt(3, pt1.Point2d(), 0, 0, 0);
+        pl.Closed = true;
+        
+        var jigPromptPointOptions = new JigPromptPointOptions();
+        using var j3 = new JigEx((mpw, _) =>
+        {
+            // 通过投影曲线找到鼠标移动后的点，通过鼠标移动后的点向量平移矩形的第三点
+            // 第四个点就是通过平移后的向量平移到第一个点
+            var closestPointTo = line1.GetClosestPointTo(mpw.Z20(), true);
+            // 鼠标移动后的向量
+            var v1 = closestPointTo.GetVectorTo(mpw.Z20()).Convert2d();
+            pl.SetPointAt(2, pt2 + v1);
+            pl.SetPointAt(3, pt1.Point2d() + v1);
+            jigPromptPointOptions.BasePoint = closestPointTo;
+        });
+        j3.DatabaseEntityDraw(draw => draw.Geometry.Draw(pl));
+        jigPromptPointOptions = j3.SetOptions(pt2.Point3d(), msg: "\n选择第3个点");
+        var r3 = Env.Editor.Drag(j3);
+        if (r3.Status != PromptStatus.OK)
+        {
+            return;
+        }
+        using var tr = new DBTrans();
+        tr.CurrentSpace.AddEntity(pl);
+    }
+}
+````
+
+## 功能说明
+
+1. 用户选择第一个点作为矩形的起始点。
+2. 用户拖动鼠标选择第二个点，此时会实时显示一条直线。
+3. 用户继续拖动鼠标选择第三个点，此时会实时显示矩形的形状。
+4. 用户确认第三个点后，矩形绘制完成。
+
+## 注意事项
+
+- 在绘制第二个点的时候可以实时拖拉，提供了更好的交互体验。
+- 使用了AutoCAD的jig功能来实现实时预览效果。
+- 代码中使用了多个jig操作来分别处理直线和矩形的绘制。
+
+
+
+这个示例展示了如何使用AutoCAD的API来创建一个交互式的绘图命令，可以帮助用户更直观地绘制矩形。
+
+包含了三点绘制矩形的完整代码实现，以及功能说明和注意事项。
+
+---
+
+# 07围绕着多段线或者块生成制定距离的包围盒子.md
+
+# 生成包围盒子
+
+本文介绍两种生成包围盒子的方法：基于多段线的矩形包围盒子和基于块基点的正方形包围盒子。
+
+## 1. 基于多段线最近的坐标点生成矩形包围盒子
+
+这个方法可以基于多段线的近点，生成一个围绕着多段线的矩形。距离可以自定义。
+
+```csharp
+/// <summary>
+/// 多段线，基于最近的坐标点生成矩形包围盒子
+/// </summary>
+[CommandMethod(nameof(SquareBox))]
+public void SquareBox()
+{
+    int offset = 10;
+    
+    using var tr = new DBTrans();
+    var pso = new PromptSelectionOptions()
+    {
+        MessageForAdding = "\n请选择多段线障碍物"
+    };
+    var psr = Env.Editor.GetSelection(pso);
+    if (psr.Status != PromptStatus.OK)
+    {
+        Env.Editor.WriteMessage("\nNo objects selected.");
+        return;
+    }
+    var entities = psr.Value.GetEntities<Autodesk.AutoCAD.DatabaseServices.Entity>().ToList();
+    foreach (var entity in entities)
+    {
+        List<Point3d> point3ds = [];
+        if (entity is Polyline polyline)
+        {
+            var numberOfVertices = polyline.NumberOfVertices;
+            for (int i = 0; i < numberOfVertices; i++)
+            {
+                Point3d point3d = polyline.GetPoint3dAt(i);
+                point3ds.Add(point3d);
+            }
+
+            var minXPoint = point3ds.OrderByDescending(p => p.X).ToList()[point3ds.Count-1];
+            var minYPoint = point3ds.OrderByDescending(p => p.Y).ToList()[point3ds.Count-1];
+            var maxXPoint = point3ds.OrderByDescending(p => p.X).FirstOrDefault();
+            var maxYPoint = point3ds.OrderByDescending(p => p.Y).FirstOrDefault();
+            List<Point3d> points = [new Point3d(minXPoint.X-offset, minYPoint.Y-offset,0), new Point3d(minXPoint.X-offset, maxYPoint.Y+offset,0), 
+                new Point3d(maxXPoint.X+offset, maxYPoint.Y+offset,0), new Point3d(maxXPoint.X+offset, minYPoint.Y-offset,0)];
+            var pline1 = points.CreatePolyline(p =>
+            {
+                p.Closed = true;
+                p.ConstantWidth = 0.2;
+                p.ColorIndex = 1;
+            });
+            tr.CurrentSpace.AddEntity(pline1);
+        }
+    }
+}
+````
+
+## 2. 基于块基点生成正方形的包围盒子
+
+这个方法可以基于块参照，生成一个指定边长的包围盒子。内间距可以指定。
+
+首先，我们需要创建一个块定义和块参照：
+
+```csharp
+/// <summary>
+/// 块定义和块参照的新增
+/// </summary>
+[CommandMethod(nameof(BlockAdd))]
+public void BlockAdd()
+{
+    using DBTrans tr = new();
+    var line1 = new Line(new Point3d(0, 0, 0), new Point3d(1, 1, 0));
+    var line2 = new Line(new Point3d(0, 0, 0), new Point3d(-1, 1, 0));
+    //块定义完毕
+    tr.BlockTable.Add("test1", line1, line2);
+    //块参照的插入
+    tr.CurrentSpace.InsertBlock(new Point3d(15, 15, 0), "test1");
+}
+```
+
+然后，我们可以基于块基点生成正方形的包围盒子：
+
+```csharp
+/// <summary>
+/// 对于块，基于块基点生成正方形的包围盒子
+/// </summary>
+[CommandMethod(nameof(BlockSquareBox))]
+public void BlockSquareBox()
+{
+    int offset = 50;
+    
+    using var tr = new DBTrans();
+    var pso = new PromptSelectionOptions()
+    {
+        MessageForAdding = "\n请选择块参照"
+    };
+    PromptSelectionResult psr = Env.Editor.GetSelection(pso);
+    if (psr.Status != PromptStatus.OK)
+    {
+        Env.Editor.WriteMessage("\nNo objects selected.");
+        return;
+    }
+    var entities = psr.Value.GetEntities<Autodesk.AutoCAD.DatabaseServices.Entity>().ToList();
+    foreach (var entity in entities)
+    {
+        List<Point3d> point3ds = [];
+        if (entity is BlockReference blockReference)
+        {
+            //块基点
+            var position = blockReference.Position;
+            
+            List<Point3d> points = [new Point3d(position.X-offset, position.Y-offset,0), new Point3d(position.X-offset, position.Y+offset,0), 
+                new Point3d(position.X+offset, position.Y+offset,0), new Point3d(position.X+offset, position.Y-offset,0)];
+            var pline1 = points.CreatePolyline(p =>
+            {
+                p.Closed = true;
+                p.ConstantWidth = 0.2;
+                p.ColorIndex = 1;
+            });
+            tr.CurrentSpace.AddEntity(pline1);
+        }
+    }
+}
+```
+
+这两种方法可以根据不同的需求来生成包围盒子，为AutoCAD中的图形处理提供了便利。
+包含了两种生成包围盒子的方法的完整代码实现，以及简要的说明。
+
+---
+
+# 08拖拽类JigEx的使用+瞬态JigExTransient 的使用.md
+
+我已经将内容重新排版为Markdown格式，并准备保存到一个新的MD文件中。我将文件命名为"JigEx和JigExTransient使用指南.md"。以下是重新排版后的内容：
+
+````````markdown:JigEx和JigExTransient使用指南.md
+# JigEx 和 JigExTransient 使用指南
+
+## JigEx 的使用
+
+JigEx 类是 ifox 封装的拖拽类，可以方便快捷简单高效地编写 Jig。
+
+### 1. JigEx的创建
+
+```csharp
+using var jig = new JigEx((mpw, queue) =>
+{
+}, 1e-6);
+jig.DatabaseEntityDraw(worlddraw =>
+{
+});
+```
+
+JigEx 提供了 `SetOptions` 函数用来设置拖拽参数：
+
+```csharp
+// 1.设置提示语和关键字
+jig.SetOptions("\n选择点", new Dictionary<string, string>() { { "A","操作(A)" }, { "Q", "操作(Q)" } });
+
+// 2.设置基点，鼠标形状，提示语
+var jppo = jig.SetOptions(Point3d.Origin, CursorType.RubberBand, "\n选择点");
+
+// 3.使用返回值设置其他选项
+jppo.Keywords.Add("A", "A", "操作(A)");
+
+// 4.使用委托的方式设置
+jig.SetOptions(jppo =>
+{
+    jppo.Message = "\n选择点";
+    jppo.UseBasePoint = true;
+    jppo.BasePoint = Point3d.Origin;
+    jppo.Keywords.Add("A", "A", "操作(A)");
+});
+```
+
+### 2. 使用queue（不推荐）
+
+```csharp
+using var jig = new JigEx((mpw, queue) =>
+{
+    var circle = new Circle(mpw, Vector3d.ZAxis, 100);
+    queue.Enqueue(circle);
+});
+jig.SetOptions("\n选择圆心位置");
+var r1 = jig.Drag();
+if (r1.Status != PromptStatus.OK)
+    return;
+using var tr = new DBTrans();
+tr.CurrentSpace.AddEntity(jig.Entitys);
+```
+
+### 3. 使用 worlddraw（推荐）
+
+```csharp
+var circle = new Circle(Point3d.Origin, Vector3d.ZAxis, 100);
+using var jig = new JigEx((mpw, queue) =>
+{
+    circle.Center = mpw;
+});
+jig.DatabaseEntityDraw(worlddraw => worlddraw.Geometry.Draw(circle));
+jig.SetOptions("\n选择圆心位置");
+var r1 = jig.Drag();
+if (r1.Status != PromptStatus.OK)
+    return;
+using var tr = new DBTrans();
+tr.CurrentSpace.AddEntity(circle);
+```
+
+### 4. worlddraw+queue结合使用
+
+```csharp
+var line = new Line(Point3d.Origin, Point3d.Origin);
+using var jig = new JigEx((mpw, queue) =>
+{
+    line.EndPoint = mpw;
+    if (mpw.X > 0)
+    {
+        var circle = new Circle(mpw, Vector3d.ZAxis, 100);
+        queue.Enqueue(circle);
+    }
+});
+jig.DatabaseEntityDraw(worlddraw => worlddraw.Geometry.Draw(line));
+jig.SetOptions("\n选择下一点");
+var r1 = jig.Drag();
+if (r1.Status != PromptStatus.OK)
+    return;
+using var tr = new DBTrans();
+tr.CurrentSpace.AddEntity(line);
+tr.CurrentSpace.AddEntity(jig.Entitys);
+```
+
+### 5. 举例
+
+#### 5.1 不使用Jig绘制圆
+
+```csharp
+[CommandMethod(nameof(JigExDemo))]
+public void JigExDemo()
+{
+    var r1 = Env.Editor.GetPoint("\n选择点");
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    var pt1 = r1.Value.Ucs2Wcs();
+    var ppo = new PromptPointOptions("\n选择半径")
+    {
+        BasePoint = r1.Value,
+        UseBasePoint = true
+    };
+    var r2 = Env.Editor.GetPoint(ppo);
+    if (r2.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    var pt2 = r2.Value.Ucs2Wcs();
+    var cir = new Circle(pt1, Vector3d.ZAxis, pt1.Distance2dTo(pt2));
+    using var tr = new DBTrans();
+    tr.CurrentSpace.AddEntity(cir);
+}
+```
+
+#### 5.2 使用Jig绘制圆（worlddraw）
+
+```csharp
+[CommandMethod(nameof(JigExDemo))]
+public void JigExDemo()
+{
+    var r1 = Env.Editor.GetPoint("\n选择点");
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    var pt1 = r1.Value.Ucs2Wcs().Z20();
+    var cir = new Circle(pt1, Vector3d.ZAxis, 1);
+    using var j1 = new JigEx((mpw, queue) =>
+    {
+        var radius = pt1.Distance2dTo(mpw.Z20());
+        if (radius > 0)
+        {
+            cir.Radius = radius;
+        }
+    });
+    j1.DatabaseEntityDraw(draw => draw.Geometry.Draw(cir));
+    j1.SetOptions(pt1, msg:"\n输入半径");
+    var r2 = Env.Editor.Drag(j1);
+    if (r2.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    using var tr = new DBTrans();
+    tr.CurrentSpace.AddEntity(cir);
+}
+```
+
+#### 5.3 使用Jig左边绘制矩形，右边绘制圆（queue）
+
+```csharp
+[CommandMethod(nameof(JigExDemo))]
+public void JigExDemo()
+{
+    var r1 = Env.Editor.GetPoint("\n选择点");
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    var pt1 = r1.Value.Ucs2Wcs().Z20();
+    using var j1 = new JigEx((mpw, queue) =>
+    {
+        var pt2 = mpw.Z20();
+        if (pt2.X > pt1.X)
+        {
+            var cir = new Circle(pt1.GetMidPointTo(pt2), Vector3d.ZAxis, pt2.DistanceTo(pt1) * 0.5);
+            cir.SetDatabaseDefaults();
+            queue.Enqueue(cir);
+        }
+        else
+        {
+            Point3d point3d1 = new Point3d(pt1.X, pt2.Y, 0);
+            Point3d point3d2 = new Point3d(pt2.X, pt1.Y, 0);
+            List<Point3d> point3ds = [pt1, point3d1, pt2, point3d2];
+            queue.Enqueue(point3ds.CreatePolyline(polyline =>
+            {
+                polyline.Closed = true;
+                polyline.SetDatabaseDefaults();
+            }));
+        }
+    });
+    j1.SetOptions(pt1, msg:"\n输入半径");
+    var r2 = Env.Editor.Drag(j1);
+    if (r2.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    using var tr = new DBTrans();
+    tr.CurrentSpace.AddEntity(j1.Entitys);
+}
+```
+
+#### 5.4 使用Jig实现移动效果
+
+```csharp
+[CommandMethod(nameof(JigExDemo))]
+public void JigExDemo()
+{
+    var r1 = Env.Editor.GetEntity("\n选择需要移动的对象");
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    using var tr = new DBTrans();
+    if (tr.GetObject(r1.ObjectId, OpenMode.ForWrite) is not Autodesk.AutoCAD.DatabaseServices.Entity entity)
+    {
+        return;
+    }
+    var pt1 = r1.PickedPoint.Ucs2Wcs().Z20();
+    using var j1 = new JigEx((mpw, _) =>
+    {
+        entity.Move(pt1, mpw.Z20());
+        pt1 = mpw;
+    });
+    j1.DatabaseEntityDraw(draw => draw.Geometry.Draw(entity));
+    j1.SetOptions(pt1, msg: "\n输入移动的位置");
+    var r2 = Env.Editor.Drag(j1);
+    if (r2.Status != PromptStatus.OK)
+    {
+        tr.Abort();
+    }
+}
+```
+
+#### 5.5 移动图元并根据关键字进行旋转
+
+```csharp
+[CommandMethod(nameof(JigExDemo))]
+public void JigExDemo()
+{
+    var r1 = Env.Editor.GetEntity("\n选择需要移动的对象");
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    using var tr = new DBTrans();
+    if (tr.GetObject(r1.ObjectId, OpenMode.ForWrite) is not Autodesk.AutoCAD.DatabaseServices.Entity entity)
+    {
+        return;
+    }
+    var pt1 = r1.PickedPoint.Ucs2Wcs().Z20();
+    using var j1 = new JigEx((mpw, _) =>
+    {
+        entity.Move(pt1, mpw.Z20());
+        pt1 = mpw;
+    });
+    j1.DatabaseEntityDraw(draw => draw.Geometry.Draw(entity));
+    j1.SetOptions(options =>
+    {
+        options.BasePoint = pt1;
+        options.Message = "\n移动";
+        options.Keywords.Add("A", "A", "旋转90度（A）");
+    });
+    while (true)
+    {
+        var r2 = Env.Editor.Drag(j1);
+        if (r2.Status == PromptStatus.Keyword)
+        {
+            switch (r2.StringResult.ToUpper())
+            {
+                case "A":
+                    entity.Rotation(pt1, Math.PI / 2, Vector3d.ZAxis);
+                    break;
+            }
+            continue;
+        }
+        if (r2.Status != PromptStatus.OK)
+        {
+            tr.Abort();
+        } 
+        return;
+    }
+}
+```
+
+## JigExTransient 的使用
+
+JigExTransient 是一个瞬态容器，用于临时显示图元，可配合 Jig 一起使用。
+
+### 示例
+
+```csharp
+// 创建瞬态容器
+using var jet = new JigExTransient();
+
+// new一个圆，并加入到瞬态容器中
+var circle = new Circle(Point3d.Origin, Vector3d.ZAxis, 100);
+jet.Add(circle);
+
+// GetPoint仅用于暂停查看效果
+Env.Editor.GetPoint("\n选择点");
+
+// 对图元进行修改后Update，可更新图元的显示
+circle.Center = new Point3d(1000, 0, 0);
+circle.ColorIndex = 1;
+jet.Update(circle);
+
+var line = new Line(Point3d.Origin, new Point3d(200, 200, 0));
+jet.Add(line);
+
+Env.Editor.GetPoint("\n选择点");
+
+// 获取容器中所有的图元
+Entity[] ents = jet.Entities;
+using var tr = new DBTrans();
+tr.CurrentSpace.AddEntity(circle);
+
+// 瞬态容器会在Dispose的时候清空，未加入数据库的图元会清除显示
+```
+
+注意：
+- 虽然没有经过事务，但仍然不能够多线程使用。
+- 瞬态容器加入图元时，可设置 TransientDrawingMode 参数，使其达到亮显，置顶等效果。
+
+```csharp
+jet.Add(TransientDrawingMode.Highlight, circle);
+jet.Add(TransientDrawingMode.DirectTopmost, line);
+```
+
+这个文档提供了 JigEx 和 JigExTransient 的详细使用说明和示例，可以帮助开发者更好地理解和使用这些工具。
+```
+
+这个Markdown文件包含了JigEx和JigExTransient的详细使用说明和多个示例，结构清晰，便于阅读和理解。
+
+---
+
+# 09自动加载和初始化的使用.md
+
+# AutoCAD插件自动加载指南
+
+自动加载功能允许我们不需要每次重启AutoCAD都手动输入netload来加载软件。AutoCAD提供了通过注册表的方式来实现自动加载，而IFoxCAD为我们提供了非常便捷的操作注册表的方法。
+
+## 注册表操作代码
+
+以下是操作注册表的核心代码：
+
+```csharp
+namespace ifoxgse.Core.System;
+
+public static class AutoRegCmd
+{
+    private static AutoReg? _autoReg;
+
+    [CommandMethod(nameof(FoxAddReg))]
+    public static void FoxAddReg()
+    {
+        _autoReg ??= new AutoReg();
+        var assemInfo = GetAssemInfo();
+        if (!AutoReg.SearchForReg(assemInfo))
+        {
+            AutoReg.RegApp(assemInfo);
+        }
+    }
+    
+    [CommandMethod(nameof(FoxRemoveReg))]
+    public static void FoxRemoveReg()
+    {
+        Env.Printl($"卸载注册表");
+        var assemInfo = GetAssemInfo();
+        if (AutoReg.SearchForReg(assemInfo))
+        {
+            AutoReg.UnRegApp(assemInfo);
+        }
+    }
+    
+    [CommandMethod(nameof(Debugx))]
+    public static void Debugx()
+    {
+        var flag = Environment.GetEnvironmentVariable("debugx", EnvironmentVariableTarget.User);
+        if (flag == null || flag == "0")
+        {
+            Environment.SetEnvironmentVariable("debugx", "1", EnvironmentVariableTarget.User);
+            Env.Printl($"vs输出 -- 已启用");
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("debugx", "0", EnvironmentVariableTarget.User);
+            Env.Printl($"vs输出 -- 已禁用");
+        }
+    }
+
+    private static AssemInfo GetAssemInfo()
+    {
+        AssemInfo assemInfo = new()
+        {
+            Loader = Assembly.GetExecutingAssembly().Location,
+            Name = Assembly.GetExecutingAssembly().GetName().Name,
+            LoadType = AssemLoadType.Startting,
+            Fullname = Assembly.GetExecutingAssembly().FullName,
+            Description = Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+        };
+        return assemInfo;
+    }
+}
+````
+
+## 自动注册到注册表
+
+要实现自动注册到注册表，我们可以利用`IExtensionApplication`接口。这个接口在插件加载时会被调用，我们可以在其中完成许多初始化操作。
+
+以下是如何实现自动注册的代码：
+
+```csharp
+using Autodesk.Windows;
+using gse.Tools;
+using ifoxgse.Core.Constant;
+using ifoxgse.Entity.PO;
+using ifoxgse.Utils;
+using ifoxgse.Utils.Ribbon;
+
+namespace ifoxgse.Core.System;
+
+public class Init : IExtensionApplication
+{
+    void IExtensionApplication.Initialize()
+    {
+        MessageBox.Show("初始化完成"); 
+        //初始化时候加载程序到注册表
+        AutoRegCmd.FoxAddReg();
+    }
+
+    public void Terminate() { }
+}
+```
+
+注意：
+1. 第一次仍然需要手动使用netload加载插件。
+2. 在`Initialize`方法中，我们调用了`AutoRegCmd.FoxAddReg()`来将插件注册到注册表中。
+3. 后续启动AutoCAD时，插件将会自动加载，无需再次手动netload。
+
+通过这种方式，我们可以大大简化插件的使用流程，提高用户体验。
+包含了AutoCAD插件自动加载的实现方法，包括注册表操作和自动注册的代码示例。
+
+---
+
+# 10分段测量多段线长度和计算多边形的面积.md
+
+# 多段线测量与面积计算
+
+本文介绍了如何实现多段线的分段测量和面积计算功能。
+
+## 主要功能
+
+1. 分段测量多段线长度
+2. 计算闭合多边形的面积
+
+## 代码实现
+
+### 主函数
+
+```csharp
+private static double textHight = 10;
+
+[CommandMethod(nameof(PolylineDemo))]
+public void PolylineDemo()
+{
+    using var tr = new DBTrans();
+    if(!tr.LayerTable.Has("标注"))
+    {
+        tr.LayerTable.Add("标注",1);
+    }
+    var pso = new PromptSelectionOptions()
+    {
+        MessageForAdding = "\n选择要测量的多段线或【设置字高（S）】"
+    };
+    pso.Keywords.Add("S"," ");
+   
+    OpFilter sf = OpFilter.Build(e=>e.Dxf(0)== "LWPOLYLINE");
+   
+    pso.KeywordInput += (o, s) =>
+    {
+        switch (s.Input.ToUpper())
+        {
+            case "S":
+                var r2 = Env.Editor.GetDouble("\n请输入字高<"+textHight+">");
+                if (r2.Status == PromptStatus.OK && r2.Value>0)
+                {
+                    textHight = r2.Value;
+                }
+                break;
+            case " ":
+                return;
+        }
+    };
+
+    var r1 = Env.Editor.GetSelection(pso,sf);
+    if (r1.Status != PromptStatus.OK)
+    {
+        return;
+    }
+    var polylines = r1.Value.GetEntities<Polyline>();
+
+    foreach (var polyline in polylines)
+    {
+        for (int i = 0; i < polyline.NumberOfVertices; i++)
+        {
+            var st = polyline.GetSegmentType(i); 
+            if(st == SegmentType.Line)
+            {
+                var cur = polyline.GetLineSegmentAt(i).ToCurve();
+                AddText(cur, tr);
+            }
+            else if(st == SegmentType.Arc)
+            {
+                var cur = polyline.GetArcSegmentAt(i).ToCurve();
+                AddText(cur, tr);
+            }   
+        }
+        if (polyline.Closed)
+        {
+            var ppr = Env.Editor.GetPoint("\n选择多边形面积计算结果的位置");
+            if (r1.Status != PromptStatus.OK)
+            {
+                return;
+            }
+            var point3d = ppr.Value;
+            GetArea(polyline, point3d, tr);
+        }
+    }
+}
+````
+
+### 添加文字标注
+
+```csharp
+private void AddText(Curve curve, DBTrans tr)
+{
+    var pt1 = curve.StartPoint;
+    var pt2 = curve.EndPoint;
+    var length = curve.GetLength();
+    var angle1 = pt1.GetAngle(pt2);
+    var angle2 = angle1 + Math.PI*0.5;
+
+    var textPoint = curve.GetPointAtDist(length*0.5).Polar(angle2,textHight);
+    var text = new DBText()
+    {
+       Position = textPoint,
+       TextString = (length/1000).ToString("0.00"),
+       HorizontalMode = TextHorizontalMode.TextCenter,
+       VerticalMode = TextVerticalMode.TextVerticalMid,
+       AlignmentPoint = textPoint,
+       WidthFactor = 0.7,
+       Layer = "标注",
+       Height = textHight
+    };
+    text.Rotation = angle1 > Math.PI*0.5 && angle1 <= Math.PI*1.5 ? angle2 + Math.PI : angle1;
+    tr.CurrentSpace.AddEntity(text);
+}
+````
+
+### 计算多边形面积
+
+```csharp
+public void GetArea(Polyline polyline, Point3d point, DBTrans tr)
+{
+    if (polyline.Closed)
+    {
+        List<Point2d> pointList = polyline.GetPoints()
+            .Select(point => point.Point2d()).ToList();
+        double area = Math.Abs(GeometryEx.GetArea(pointList));
+        var text = new DBText()
+        {
+            Position = point,
+            TextString = "当前多边形的面积为：" + (area / 1000).ToString("0.00"),
+            HorizontalMode = TextHorizontalMode.TextCenter,
+            VerticalMode = TextVerticalMode.TextVerticalMid,
+            AlignmentPoint = point,
+            WidthFactor = 0.7,
+            Layer = "标注",
+            Height = textHight,
+        };
+        var sts = tr.TextStyleTable;
+        if (sts.Has("宋体"))
+        {
+            var textStyle = tr.TextStyleTable.GetRecord("宋体");
+            if (textStyle != null)
+            {
+                text.TextStyleId = textStyle.Id;
+            }
+        }
+       
+        tr.CurrentSpace.AddEntity(text);
+    }
+}
+````
+
+## 使用说明
+
+1. 运行 `PolylineDemo` 命令。
+2. 选择要测量的多段线，或输入 "S" 设置文字高度。
+3. 程序会自动计算每个线段的长度并添加标注。
+4. 如果多段线是闭合的，程序会提示选择一个点来放置面积计算结果。
+
+## 注意事项
+
+- 确保 "标注" 图层存在，如果不存在，程序会自动创建。
+- 面积计算仅适用于闭合的多段线。
+- 文字标注使用 "宋体"，如果该字体不存在，将使用默认字体。
+
+这个功能可以帮助用户快速测量多段线的长度和计算闭合多边形的面积，提高工作效率。
+包含了多段线测量与面积计算的完整代码实现，以及使用说明和注意事项。
+
+---
+
+
 
 - 全局using
 
