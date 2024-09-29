@@ -902,7 +902,7 @@ public void BlockSquareBox()
 
 我已经将内容重新排版为Markdown格式，并准备保存到一个新的MD文件中。我将文件命名为"JigEx和JigExTransient使用指南.md"。以下是重新排版后的内容：
 
-````````markdown:JigEx和JigExTransient使用指南.md
+markdown:JigEx和JigExTransient使用指南.md
 # JigEx 和 JigExTransient 使用指南
 
 ## JigEx 的使用
