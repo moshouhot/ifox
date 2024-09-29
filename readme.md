@@ -124,6 +124,66 @@ public void Test_PrintDxfname()
 }
 ```
 
+
+允许用户选择多个多段线，并对所有选中的多段线进行操作。这个技术可以应用于其他需要多选实体的AutoCAD插件开发中。
+```csharp
+[CommandMethod("SelectMultipleEntities")]
+public void SelectMultipleEntities()
+{
+    // 使用 DBTrans 进行数据库事务操作
+    using var tr = new DBTrans();
+    
+    Env.Printl("请选择多个实体:");
+
+    // 设置选择选项
+    var pso = new PromptSelectionOptions
+    {
+        MessageForAdding = "\n选择实体（按回车结束选择）: ",
+        AllowDuplicates = false
+    };
+
+    // 获取用户选择
+    var result = Env.Editor.GetSelection(pso);
+    if (result.Status != PromptStatus.OK)
+    {
+        Env.Printl("选择已取消。");
+        return;
+    }
+
+    // 获取选中的实体ID
+    var selectedIds = result.Value.GetObjectIds();
+
+    // 用于统计不同类型实体的数量
+    var entityCounts = new Dictionary<string, int>();
+
+    // 遍历选中的实体
+    foreach (var id in selectedIds)
+    {
+        var entity = tr.GetObject<Entity>(id);
+        if (entity != null)
+        {
+            var entityType = entity.GetType().Name;
+            if (entityCounts.ContainsKey(entityType))
+            {
+                entityCounts[entityType]++;
+            }
+            else
+            {
+                entityCounts[entityType] = 1;
+            }
+        }
+    }
+
+    // 输出结果
+    Env.Printl($"\n共选择了 {selectedIds.Length} 个实体:");
+    foreach (var kvp in entityCounts)
+    {
+        Env.Printl($"- {kvp.Key}: {kvp.Value} 个");
+    }
+}
+```
+
+
 ### 1.2.2 移动
 
 用法：
@@ -1670,27 +1730,28 @@ __然后怎么使用呢？使用符号表一共分几步呢？__
 每个符号表都提供了索引形式的获取元素id的写法。
 - __线型表__
 
-1. // 两种方式
-2. // 第一种，直接调用tr.LinetypeTable.Add("hah")函数，然后对返回值ObjectId做具体的操作。
-3. // 第二种，直接在Action委托里把相关的操作完成。
-4. tr.LinetypeTable.Add(
-5.                    "hah",
-6.                    ltt => 
-7.                    {
-8.                        ltt.AsciiDescription = "虚线";
-9.                        ltt.PatternLength = 0.95; //线型的总长度
-10.                        ltt.NumDashes = 4; //组成线型的笔画数目
-11.                        ltt.SetDashLengthAt(0, 0.5); //0.5个单位的划线
-12.                        ltt.SetDashLengthAt(1, -0.25); //0.25个单位的空格
-13.                        ltt.SetDashLengthAt(2, 0); // 一个点
-14.                        ltt.SetDashLengthAt(3, -0.25); //0.25个单位的空格
-15.                    });
-16. // 这段代码同时演示了 ifoxcad 类库关于符号表的public ObjectId Add(string name, Action<TRecord> action)这个函数的用法。
-17. // 或者直接调用：
-18. tr.LinetypeTable.Add("hah", "虚线",0.95,new double[]{0.5,-0.25,0,-0.25});
-19. // 获取线型表
-20. tr.LinetypeTable["hah"];
-
+// 两种方式
+// 第一种，直接调用tr.LinetypeTable.Add("hah")函数，然后对返回值ObjectId做具体的操作。
+// 第二种，直接在Action委托里把相关的操作完成。
+```
+tr.LinetypeTable.Add(
+                  "hah",
+                  ltt => 
+                  {
+                      ltt.AsciiDescription = "虚线";
+                       ltt.PatternLength = 0.95; //线型的总长度
+                       ltt.NumDashes = 4; //组成线型的笔画数目
+                       ltt.SetDashLengthAt(0, 0.5); //0.5个单位的划线
+                       ltt.SetDashLengthAt(1, -0.25); //0.25个单位的空格
+                       ltt.SetDashLengthAt(2, 0); // 一个点
+                       ltt.SetDashLengthAt(3, -0.25); //0.25个单位的空格
+                   });
+// 这段代码同时演示了 ifoxcad 类库关于符号表的public ObjectId Add(string name, Action<TRecord> action)这个函数的用法。
+// 或者直接调用：
+tr.LinetypeTable.Add("hah", "虚线",0.95,new double[]{0.5,-0.25,0,-0.25});
+// 获取线型表
+tr.LinetypeTable["hah"];
+```
 __其他符号表的操作类同。如果类库没有提供的Add函数的重载，那么Action委托可以完成你想完成的所有事情。__
 ### 3.1.4 基础属性操作
 
@@ -1698,9 +1759,9 @@ __其他符号表的操作类同。如果类库没有提供的Add函数的重载
 同时还提供了关于字典的相关属性。
 ### 3.1.5 对象获取操作
 
-```
+
 提供了1个泛型 GetObject<T>函数的重载来根据ObjectId来获取到对象。
-```
+
 ## 3.2. __符号表__
 
 ### 3.2.1 概述
