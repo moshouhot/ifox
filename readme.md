@@ -1000,6 +1000,8 @@ jig.SetOptions(jppo =>
 });
 ```
 
+
+
 ### 2. 使用queue（不推荐）
 
 ```csharp
@@ -1422,79 +1424,494 @@ public class Init : IExtensionApplication
 
 ## 代码实现
 
-### 主函数
+### 完整代码
 
 ```csharp
-private static double textHight = 10;
+public class Command2
+    {
+        public class KeywordException : Exception
+        {
+            public KeywordException(string input)
+            {
+                Input = input;
+            }
 
-[CommandMethod(nameof(PolylineDemo))]
-public void PolylineDemo()
+            public string Input { get; }
+        }
+
+        private static double textHight = 10;
+
+        [CommandMethod(nameof(PolylineDemo))]
+        public void PolylineDemo()
+        {
+            using var tr = new DBTrans();
+            var ed = Env.Editor;
+
+            // 确保标注图层存在
+            if (!tr.LayerTable.Has("标注"))
+            {
+                tr.LayerTable.Add("标注", 1);
+            }
+
+            while (true)
+            {
+                try
+                {
+                    // 创建选择选项
+                    var pso = new PromptSelectionOptions()
+                    {
+                        MessageForAdding = $"\n选择要测量的多段线 (设置字高S，当前字高: {textHight:#})"
+                    };
+
+                    // 添加关键字
+                    pso.Keywords.Add("S", "S", "设置字高(S)");
+                    pso.MessageForAdding += pso.Keywords.GetDisplayString(true);
+
+                    // 设置过滤器
+                    OpFilter sf = OpFilter.Build(e => e.Dxf(0) == "LWPOLYLINE");
+
+                    // 添加关键字输入事件处理
+                    pso.KeywordInput += (s, args) =>
+                    {
+                        throw new KeywordException(args.Input.ToUpper());
+                    };
+
+                    // 获取用户选择
+                    var r1 = ed.GetSelection(pso, sf);
+                    if (r1.Status != PromptStatus.OK)
+                    {
+                        Env.Printl("操作已取消。");
+                        return;
+                    }
+
+                    var polylines = r1.Value.GetEntities<Polyline>();
+                    if (!polylines.Any())
+                    {
+                        Env.Printl("未选择到多段线。");
+                        continue;
+                    }
+
+                    // 处理每个多段线
+                    foreach (var polyline in polylines)
+                    {
+                        // 处理线段和弧段
+                        for (int i = 0; i < polyline.NumberOfVertices; i++)
+                        {
+                            var st = polyline.GetSegmentType(i);
+                            if (st == SegmentType.Line)
+                            {
+                                var cur = polyline.GetLineSegmentAt(i).ToCurve();
+                                AddText(cur, tr);
+                            }
+                            else if (st == SegmentType.Arc)
+                            {
+                                var cur = polyline.GetArcSegmentAt(i).ToCurve();
+                                AddText(cur, tr);
+                            }
+                        }
+
+                        // 处理闭合多段线的面积
+                        if (polyline.Closed)
+                        {
+                            var ppr = ed.GetPoint("\n选择多边形面积计算结果的位置");
+                            if (ppr.Status == PromptStatus.OK)
+                            {
+                                GetArea(polyline, ppr.Value, tr);
+                            }
+                        }
+                    }
+
+                    break; // 完成所有操作后退出
+                }
+                catch (KeywordException ex)
+                {
+                    switch (ex.Input)
+                    {
+                        case "S":
+                            var r2 = ed.GetDouble($"\n请输入字高 <{textHight}>");
+                            if (r2.Status == PromptStatus.OK && r2.Value > 0)
+                            {
+                                textHight = r2.Value;
+                                Env.Printl($"字高已设置为: {textHight}");
+                            }
+                            break;
+                    }
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    Env.Printl($"执行过程中出错: {ex.Message}");
+                    return;
+                }
+            }
+        }
+
+        private void AddText(Curve curve, DBTrans tr)
+        {
+            var pt1 = curve.StartPoint;
+            var pt2 = curve.EndPoint;
+            var length = curve.GetLength();
+            var angle1 = pt1.GetAngle(pt2);
+            var angle2 = angle1 + Math.PI * 0.5;
+
+            var textPoint = curve.GetPointAtDist(length * 0.5).Polar(angle2, textHight);
+            var text = new DBText()
+            {
+                Position = textPoint,
+                TextString = (length / 1000).ToString("0.00"),
+                HorizontalMode = TextHorizontalMode.TextCenter,
+                VerticalMode = TextVerticalMode.TextVerticalMid,
+                AlignmentPoint = textPoint,
+                WidthFactor = 0.7,
+                Layer = "标注",
+                Height = textHight
+            };
+            text.Rotation = angle1 > Math.PI * 0.5 && angle1 <= Math.PI * 1.5 ? angle2 + Math.PI : angle1;
+            tr.CurrentSpace.AddEntity(text);
+        }
+
+        public void GetArea(Polyline polyline, Point3d point, DBTrans tr)
+        {
+            if (polyline.Closed)
+            {
+                List<Point2d> pointList = polyline.GetPoints()
+                    .Select(point => point.Point2d()).ToList();
+                double area = Math.Abs(GeometryEx.GetArea(pointList));
+                var text = new DBText()
+                {
+                    Position = point,
+                    TextString = "当前多边形的面积为：" + (area / 1000).ToString("0.00"),
+                    HorizontalMode = TextHorizontalMode.TextCenter,
+                    VerticalMode = TextVerticalMode.TextVerticalMid,
+                    AlignmentPoint = point,
+                    WidthFactor = 0.7,
+                    Layer = "标注",
+                    Height = textHight,
+                };
+                var sts = tr.TextStyleTable;
+                if (sts.Has("宋体"))
+                {
+                    var textStyle = tr.TextStyleTable.GetRecord("宋体");
+                    if (textStyle != null)
+                    {
+                        text.TextStyleId = textStyle.Id;
+                    }
+                }
+
+                tr.CurrentSpace.AddEntity(text);
+            }
+        }
+    }
+```
+
+### 概述
+在AutoCAD命令开发中，经常需要在命令执行过程中提供额外的选项供用户选择。IFoxCAD提供了一种优雅的方式来处理这种情况，通过关键字（Keywords）和自定义异常来实现交互流程控制。
+
+### 使用场景
+- 需要在选择对象时提供额外选项
+- 需要在命令执行过程中修改参数
+- 需要实现类似AutoCAD原生命令的交互体验
+
+### 1. 自定义关键字异常类
+在AutoCAD命令中处理关键字输入时，推荐使用以下模式：
+```csharp
+public class KeywordException : Exception
+{
+    public KeywordException(string input)
+    {
+        Input = input;
+    }
+
+    public string Input { get; }
+}
+```
+
+### 2. 命令实现模式
+```csharp
+[CommandMethod("YourCommand")]
+public void YourCommand()
 {
     using var tr = new DBTrans();
-    if(!tr.LayerTable.Has("标注"))
-    {
-        tr.LayerTable.Add("标注",1);
-    }
-    var pso = new PromptSelectionOptions()
-    {
-        MessageForAdding = "\n选择要测量的多段线或【设置字高（S）】"
-    };
-    pso.Keywords.Add("S"," ");
-   
-    OpFilter sf = OpFilter.Build(e=>e.Dxf(0)== "LWPOLYLINE");
-   
-    pso.KeywordInput += (o, s) =>
-    {
-        switch (s.Input.ToUpper())
-        {
-            case "S":
-                var r2 = Env.Editor.GetDouble("\n请输入字高<"+textHight+">");
-                if (r2.Status == PromptStatus.OK && r2.Value>0)
-                {
-                    textHight = r2.Value;
-                }
-                break;
-            case " ":
-                return;
-        }
-    };
+    var ed = Env.Editor;
+    double someValue = 100.0; // 需要通过关键字修改的值
+    PromptSelectionResult? result;
 
-    var r1 = Env.Editor.GetSelection(pso,sf);
-    if (r1.Status != PromptStatus.OK)
+    while (true)
     {
-        return;
-    }
-    var polylines = r1.Value.GetEntities<Polyline>();
+        // 1. 创建选项并设置提示信息
+        var pso = new PromptSelectionOptions()
+        { 
+            MessageForAdding = $"\n选择对象 当前值: {someValue:#}"
+        };
+        
+        // 2. 添加关键字
+        pso.Keywords.Add("S", "S", "设置(S)");
+        pso.MessageForAdding += pso.Keywords.GetDisplayString(true);
+        
+        // 3. 添加关键字输入事件处理
+        pso.KeywordInput += (s, args) => 
+        { 
+            throw new KeywordException(args.Input.ToUpper()); 
+        };
 
-    foreach (var polyline in polylines)
-    {
-        for (int i = 0; i < polyline.NumberOfVertices; i++)
+        try
         {
-            var st = polyline.GetSegmentType(i); 
-            if(st == SegmentType.Line)
+            // 4. 获取用户选择
+            result = ed.GetSelection(pso);
+            if (result.Status != PromptStatus.OK)
             {
-                var cur = polyline.GetLineSegmentAt(i).ToCurve();
-                AddText(cur, tr);
+                return; // 用户取消
             }
-            else if(st == SegmentType.Arc)
-            {
-                var cur = polyline.GetArcSegmentAt(i).ToCurve();
-                AddText(cur, tr);
-            }   
+
+            // 5. 处理选择的对象
+            // ...
+
+            break; // 完成操作后退出循环
         }
-        if (polyline.Closed)
+        catch (KeywordException ex)
         {
-            var ppr = Env.Editor.GetPoint("\n选择多边形面积计算结果的位置");
-            if (r1.Status != PromptStatus.OK)
+            // 6. 处理关键字输入
+            switch (ex.Input)
             {
-                return;
+                case "S":
+                    var r2 = ed.GetDouble("\n输入新的值");
+                    if (r2.Status == PromptStatus.OK)
+                    {
+                        someValue = r2.Value;
+                    }
+                    break;
             }
-            var point3d = ppr.Value;
-            GetArea(polyline, point3d, tr);
+            continue; // 继续循环，重新提示选择
         }
     }
 }
-````
+```
+
+### 3. 关键点说明
+
+#### 代码结构
+1. **循环控制**：使用`while(true)`循环来持续处理用户输入
+2. **关键字设置**：
+   - 使用`Keywords.Add()`添加关键字
+   - 参数说明：(关键字值, 命令行输入值, 提示文本)
+   - 使用`GetDisplayString(true)`获取格式化提示
+3. **异常处理**：
+   - 使用自定义`KeywordException`控制流程
+   - 在`catch`块中处理关键字相关操作
+   - 使用`continue`重新开始选择流程
+
+#### 最佳实践
+1. **命名规范**
+   - 关键字使用大写（如："S"）
+   - 提示信息要清晰明确
+   - 变量名要有意义
+
+2. **错误处理**
+   - 检查所有返回状态
+   - 合理使用return退出
+   - 提供清晰的错误提示
+
+3. **用户交互**
+   - 显示当前值状态
+   - 提供清晰的操作提示
+   - 保持命令行提示的一致性
+
+### 4. 示例代码
+```csharp
+public class Command1
+{
+    public class KeywordException : Exception
+    {
+        public KeywordException(string input)
+        {
+            Input = input;
+        }
+
+        public string Input { get; }
+    }
+
+    [CommandMethod(nameof(TT3))]
+    public void TT3()
+    {
+        using var tr = new DBTrans();
+        double size = 100.0; // 默认长度值
+        var ed = Env.Editor;
+        PromptSelectionResult? r1;
+
+        while (true)
+        {
+            var pso = new PromptSelectionOptions()
+            { 
+                MessageForAdding = $"\n选择要处理的对象，设置直线长度 {size:#}"
+            };
+            
+            pso.Keywords.Add("S", "S", "设置直线长度(S)");
+            pso.MessageForAdding += pso.Keywords.GetDisplayString(true);
+            
+            // 添加关键字输入事件处理
+            pso.KeywordInput += (s, args) => 
+            { 
+                throw new KeywordException(args.Input.ToUpper()); 
+            };
+
+            try
+            {
+                r1 = ed.GetSelection(pso);
+                if (r1.Status != PromptStatus.OK)
+                {
+                    Env.Printl("操作已取消。");
+                    return;
+                }
+
+                // 获取所有选中的实体
+                var entities = r1.Value.GetEntities<Entity>();
+                if (entities == null || !entities.Any())
+                {
+                    Env.Printl("未获取到有效实体。");
+                    return;
+                }
+
+                // 遍历实体，找到直线并修改长度
+                int count = 0;
+                foreach (var entity in entities)
+                {
+                    if (entity is Line line)
+                    {
+                        using (line.ForWrite())
+                        {
+                            // 获取直线的方向向量
+                            Vector3d direction = line.EndPoint - line.StartPoint;
+                            direction = direction.GetNormal(); // 获取单位向量
+
+                            // 计算新的终点
+                            Point3d newEndPoint = line.StartPoint + direction * size;
+
+                            // 设置新的终点
+                            line.EndPoint = newEndPoint;
+                            count++;
+                        }
+                    }
+                }
+
+                Env.Printl($"成功修改 {count} 条直线的长度为 {size:F2}。");
+                break;
+            }
+            catch (KeywordException ex)
+            {
+                switch (ex.Input)
+                {
+                    case "S":
+                        var r2 = ed.GetDouble("\n输入直线长度");
+                        if (r2.Status == PromptStatus.OK)
+                        {
+                            size = r2.Value;
+                        }
+                        else
+                        {
+                            Env.Printl("长度设置已取消。");
+                            return;
+                        }
+                        break;
+                }
+                continue;
+            }
+            catch (Exception ex)
+            {
+                Env.Printl($"执行过程中出错: {ex.Message}");
+                return;
+            }
+        }
+    }
+}
+```
+
+### 5. 注意事项
+- 确保在关键字处理后使用`continue`继续循环
+- 合理使用`return`处理取消操作
+- 提示信息要包含当前值信息
+- 使用`using`语句确保资源正确释放
+- 考虑添加适当的错误处理机制
+
+### 6. 相关API参考
+- `PromptSelectionOptions`：选择选项设置
+- `Keywords`：关键字集合
+- `GetDisplayString`：获取显示字符串
+- `KeywordInput`：关键字输入事件
+- `GetSelection`：获取选择结果
+- `GetDouble`：获取数值输入
+
+### 7. 常见问题和解决方案
+#### 问题1：关键字不响应
+- 确保关键字大写
+- 检查KeywordInput事件是否正确绑定
+- 验证异常处理是否正确
+
+#### 问题2：循环控制
+- 使用continue继续循环
+- 使用break退出循环
+- 使用return退出命令
+
+#### 问题3：资源管理
+- 使用using语句管理事务
+- 正确处理对象的ForWrite状态
+- 及时释放不需要的资源
+
+## 基础命令示例
+
+### 1. HelloWorld命令
+最基本的IFoxCAD命令示例，展示了如何创建一条直线并缩放视图：
+
+```csharp
+[CommandMethod(nameof(HelloWorld))]
+public void HelloWorld()
+{
+    using var tr = new DBTrans();
+    Env.Printl("hello world!");
+    Env.Printl("开始画线：");
+    Line line = new(new Point3d(0, 0, 0), new Point3d(1, 1, 0));
+    tr.CurrentSpace.AddEntity(line);
+    Env.Print("画线结束");
+    Env.Editor.ZoomWindow(new Point3d(-1, -1, 0), new Point3d(2, 2, 0));
+}
+```
+
+关键点说明：
+- 使用DBTrans管理数据库事务
+- 使用Env.Printl输出信息
+- 使用tr.CurrentSpace添加实体
+- 使用ZoomWindow控制视图
+
+### 2. 实体操作命令
+展示了如何选择和修改实体的示例：
+
+```csharp
+[CommandMethod(nameof(TT2))]
+public void TT2()
+{
+    using var tr = new DBTrans();
+    try
+    {
+        var opts = new PromptSelectionOptions
+        {
+            MessageForAdding = "请框选图形:"
+        };
+
+        PromptSelectionResult psr = Env.Editor.GetSelection(opts);
+        if (psr.Status != PromptStatus.OK)
+        {
+            Env.Printl("未选择任何对象。");
+            return;
+        }
+
+        var entities = psr.Value.GetEntities<Entity>();
+        // 处理实体...
+    }
+    catch (Exception ex)
+    {
+        Env.Printl($"执行过程中出错: {ex.Message}");
+    }
+}
+```
 
 ### 添加文字标注
 
@@ -4718,3 +5135,5 @@ Acap.UIBindings.Collections此集合类中有各种符号表的信息,图层表,
 # 25.PE的使用
 
 Todo 
+
+
