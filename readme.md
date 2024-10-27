@@ -378,7 +378,6 @@ public void Test_BlockFile()
     tr.CurrentSpace.InsertBlock(Point3d.Origin, id);
 }
 ```
-这个Markdown文件包含了块操作的主要内容，包括块表查询、块定义、修改块定义、删除块定义和从文件获取块定义等操作。文件结构清晰，便于阅读和理解。
 
 # 03图层操作.md
 
@@ -1293,11 +1292,7 @@ jet.Add(TransientDrawingMode.DirectTopmost, line);
 ```
 
 这个文档提供了 JigEx 和 JigExTransient 的详细使用说明和示例，可以帮助开发者更好地理解和使用这些工具。
-```
 
-这个Markdown文件包含了JigEx和JigExTransient的详细使用说明和多个示例，结构清晰，便于阅读和理解。
-
----
 
 # 09自动加载和初始化的使用.md
 
