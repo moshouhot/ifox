@@ -378,11 +378,7 @@ public void Test_BlockFile()
     tr.CurrentSpace.InsertBlock(Point3d.Origin, id);
 }
 ```
-
-
 这个Markdown文件包含了块操作的主要内容，包括块表查询、块定义、修改块定义、删除块定义和从文件获取块定义等操作。文件结构清晰，便于阅读和理解。
-
----
 
 # 03图层操作.md
 
